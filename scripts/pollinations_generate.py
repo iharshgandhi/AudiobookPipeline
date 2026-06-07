@@ -1,8 +1,9 @@
-"""Cloud image generation via Pollinations.ai (Flux model).
+"""Cloud image generation via Pollinations.ai (gen.pollinations.ai).
 
 Reads prompts from:    Prompts/<chapter>/Image<N>.txt
 Writes images to:      Images/<chapter>/Image<N>.png
 
+Uses API key from config.local.json (gitignored) or POLLINATIONS_API_KEY env var.
 Re-run safety: skips any prompt whose .png already exists.
 Delete a .png and re-run to regenerate just that image.
 """
@@ -19,7 +20,7 @@ import requests
 
 from common import IMAGES_DIR, PROMPTS_DIR, load_config
 
-ENDPOINT = "https://image.pollinations.ai/prompt/"
+ENDPOINT = "https://gen.pollinations.ai/image/"
 TIMEOUT = 180
 WARN_THRESHOLD = 500
 
@@ -58,8 +59,9 @@ def main() -> None:
             queue.append((p, out))
 
     tier = (
-        "registered (no watermark)" if TOKEN
-        else "anonymous (small corner watermark)"
+        "authenticated (no watermark, no logo)"
+        if TOKEN
+        else "unauthenticated (may show watermark)"
     )
     print(
         f"[pollinations] model={MODEL}  {WIDTH}x{HEIGHT}  "
@@ -115,8 +117,6 @@ def main() -> None:
             "width": WIDTH,
             "height": HEIGHT,
             "seed": seed,
-            "nologo": "true" if TOKEN else "false",
-            "private": "true",
         }
         url = ENDPOINT + urllib.parse.quote(prompt_text, safe="")
 

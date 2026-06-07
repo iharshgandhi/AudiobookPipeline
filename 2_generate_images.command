@@ -3,7 +3,7 @@
 #  2_generate_images.command
 #
 #  Renders Prompts/<chapter>/ImageN.txt → Images/<chapter>/ImageN.png
-#  via Pollinations.ai (free, Flux model).
+#  via Pollinations.ai (gen.pollinations.ai, Flux model).
 #
 #  Safe to interrupt and re-run:
 #    - Skips any prompt whose .png already exists
