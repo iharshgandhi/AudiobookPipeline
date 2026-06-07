@@ -1,0 +1,72 @@
+# =============================================================================
+#  character_voices.txt
+#  Maps each book character to an edge-tts voice for multi-voice narration.
+#  Read by 4b_convert_multi.command (scripts/convert_multi.py).
+# =============================================================================
+#
+#  FORMAT (one character per line):
+#      CharacterName = (Voice, pitchHz, rate%)
+#  Optional 4th value adds volume:
+#      CharacterName = (Voice, pitchHz, rate%, volume%)
+#
+#    * CharacterName  - exactly matches the tag used in the tagged chapter
+#                       files, e.g. <Alice> ... </Alice>  ->  "Alice".
+#                       Case-insensitive. Keep names in English/Roman.
+#    * Voice          - either a short ALIAS from the list below
+#                       (e.g. Ava), OR a full edge-tts short name
+#                       (e.g. en-US-AvaMultilingualNeural).
+#    * pitchHz        - pitch shift in Hertz. 5 = +5Hz, -8 = -8Hz, 0 = none.
+#    * rate%          - speaking-rate shift in percent. 10 = +10%, -5 = -5%.
+#    * volume%        - (optional) loudness shift. 0 = none, -10 = quieter.
+#
+#  Lines starting with # are ignored. Blank lines are ignored.
+#
+#  NARRATOR is REQUIRED: voice used for ALL text outside any character tag.
+#  Give your most pleasant long-form voice to NARRATOR.
+#
+#  Example:
+#      NARRATOR = (Madhur, 0, 0)
+#      Alice    = (Ava, 5, 10)
+#      Bob      = (Andrew, -6, -3)
+#
+# =============================================================================
+#  AVAILABLE VOICES  (alias  ->  edge-tts short name)
+# -----------------------------------------------------------------------------
+#  These all read Hindi/Devanagari text.
+#
+#  ---- Native Hindi ----
+#    Swara    = hi-IN-SwaraNeural        (Female, native Hindi - warm narration)
+#    Madhur   = hi-IN-MadhurNeural       (Male,   native Hindi - clear narration)
+#
+#  ---- Indian English (bilingual, handle Hindi naturally) ----
+#    Neerja   = en-IN-NeerjaNeural       (Female, Indian - soft, expressive)
+#    Prabhat  = en-IN-PrabhatNeural      (Male,   Indian - steady, neutral)
+#
+#  ---- Marathi (Devanagari script, pronunciation very close to Hindi) ----
+#    Aarohi   = mr-IN-AarohiNeural       (Female, bright, youthful)
+#    Manohar  = mr-IN-ManoharNeural      (Male,   firm, mature)
+#
+#  ---- Nepali (Devanagari script, reads Hindi cleanly) ----
+#    Hemkala  = ne-NP-HemkalaNeural      (Female, gentle)
+#    Sagar    = ne-NP-SagarNeural        (Male,   plain, grounded)
+#
+#  ---- Multilingual (read Hindi with a light foreign accent) ----
+#    Ava      = en-US-AvaMultilingualNeural    (Female, warm, expressive)
+#    Andrew   = en-US-AndrewMultilingualNeural (Male,   warm, confident)
+#    Emma     = en-US-EmmaMultilingualNeural   (Female, cheerful, light)
+#    Brian    = en-US-BrianMultilingualNeural  (Male,   casual, easy)
+#    Seraphina= de-DE-SeraphinaMultilingualNeural (Female, crisp)
+#    Florian  = de-DE-FlorianMultilingualNeural   (Male,   measured)
+#    Vivienne = fr-FR-VivienneMultilingualNeural  (Female, elegant)
+#    Remy     = fr-FR-RemyMultilingualNeural      (Male,   smooth)
+#
+#  TIP for variety: the same voice at a different pitch reads as a different
+#  person. e.g. Ava at +0Hz, +6Hz and -6Hz can cover three side characters.
+# =============================================================================
+
+
+# ---- CHARACTER ASSIGNMENTS ----
+# The NARRATOR line is required. Add one line per major character as they
+# appear in the book. The translation AI will suggest assignments.
+
+NARRATOR = (Madhur, 0, 0)

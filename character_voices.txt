@@ -1,0 +1,49 @@
+# CHARACTER VOICES — Jurassic Park
+# Format: TagName = (VoiceAlias, pitchHz, rate%, volume%)
+# pitchHz: positive = higher, negative = lower. Range roughly -12 to +12
+# rate%: positive = faster, negative = slower. Range roughly -15 to +15
+# Lines starting with # are ignored
+# NARRATOR is required — voice for all untagged text
+
+# --- AVAILABLE VOICES (alias → Edge TTS voice) ---
+# Native Hindi (safe — always works for Devanagari):
+#   Swara    (Female, native)        Madhur   (Male, native)
+# Marathi (Devanagari, near-Hindi):
+#   Aarohi   (Female, youthful)      Manohar  (Male, mature)
+# Nepali (Devanagari):
+#   Hemkala  (Female, gentle)        Sagar    (Male, grounded)
+# Multilingual (slight accent, proven to handle Hindi):
+#   Ava (F)  Emma (F)  Seraphina (F)  Vivienne (F)
+#   Andrew (M)  Brian (M)  Florian (M)  Remy (M)
+
+# --- VOICE ASSIGNMENTS ---
+
+NARRATOR  = (Madhur, 0, 0)
+
+# Major Characters
+Alan_Grant = (Manohar, -3, 0)
+Ellie_Sattler = (Aarohi, +5, +5)
+John_Hammond = (Manohar, +2, +3)
+Ian_Malcolm = (Florian, 0, +8)
+Donald_Gennaro = (Andrew, -2, -3)
+Dennis_Nedry = (Andrew, -5, +5)
+Robert_Muldoon = (Manohar, -6, -5)
+Dr_Henry_Wu = (Prabhat, 0, +3)
+Tim_Murphy = (Emma, +8, +5)
+Lex_Murphy = (Swara, +12, +8)
+Ed_Regis = (Andrew, +3, +8)
+
+# Secondary Characters
+Dr_Roberta_Carter = (Swara, +5, +3)
+Lewis_Dodgson = (Prabhat, -4, 0)
+Dr_Harding = (Prabhat, -2, -2)
+Marty_Guitierrez = (Florian, +2, +3)
+Alice_Levin = (Aarohi, +3, +5)
+John_Arnold = (Andrew, -4, +10)
+Mike_Bowman = (Andrew, 0, 0)
+Ellen_Bowman = (Swara, +3, +2)
+Tina_Bowman = (Emma, +10, +5)
+Bob_Morris = (Prabhat, 0, 0)
+Elena_Morales = (Swara, -2, -3)
+Manuel_Aragon = (Prabhat, -2, 0)
+Daniel_Ross = (Andrew, -5, -5)
