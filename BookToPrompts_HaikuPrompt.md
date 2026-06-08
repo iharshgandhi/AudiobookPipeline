@@ -73,10 +73,17 @@ Flux likes a mix of natural language and comma-separated tokens. Use this
 ordered structure for every prompt:
 
 ```
-[setting/location], [time of day + lighting], [characters with action],
-[character descriptors copied from bible], [mood], [shot type],
-[style anchor], [2-3 technical style modifiers]
+[setting/location], [time of day + lighting], [characters with action
+ — use CHARACTER_NAME only, no descriptions], [mood], [shot type],
+[style], [2-3 technical style modifiers]
 ```
+
+**IMPORTANT — Character names only.**  A post-processing script will
+automatically enrich your prompts with compact visual descriptions from the
+Character Bible.  You do NOT need to copy the full description into the
+prompt — just write the character name in ALL_CAPS (e.g. `ALAN_GRANT`).
+This keeps the prompts short enough to fit within Pollinations' URL
+budget while still producing consistent character visuals across images.
 
 Technical style modifiers Flux rewards (pick 2-3 per prompt that match
 your chosen style):
@@ -97,11 +104,20 @@ positive prompt.
 **DO NOT** include aspect ratio, resolution, or "16:9" in the prompt. The
 renderer sets that separately via URL parameters.
 
-## RULE 4 — Length budget
+## RULE 4 — Length budget (CRITICAL)
 
-Each prompt should be **50–100 words**. Flux degrades on extremely long
-prompts, and URLs have practical length limits since Pollinations encodes
-the prompt directly in the URL.
+Each prompt MUST be **40–60 words** (~400–700 characters).  The
+Pollinations.ai API encodes your prompt directly into a URL, and the
+Fireworks FLUX backend has a hard character budget (~900 chars total).
+Prompts longer than this will fail with HTTP 400 errors during image
+generation.
+
+The post-processing enrichment script adds compact character descriptions
+(~50–80 chars per character), so you must leave room.  If your base prompt
+is short, the enrichment will still produce consistent character visuals.
+
+**Never exceed 700 characters in your base prompt text.** (The script
+measures this; you'll see warnings if you go over.)
 
 ## RULE 5 — Show action, not scenery postcards
 
@@ -111,19 +127,37 @@ moment of confession with both characters and their expressions. A
 discovery — render the moment of recognition. Mix establishing shots
 (introducing setting) with action shots (showing what's happening).
 
-## RULE 6 — Character consistency through descriptors, not names
+## RULE 6 — Character consistency through names
 
 Flux doesn't know "Edward Malone." It only knows what you describe in this
-specific prompt. So every time Edward appears, copy-paste his full visual
-descriptor from the Character Bible into the prompt. Same for locations.
+specific prompt.  **Use the character's exact ALL_CAPS name from the
+Character Bible** (e.g. `EDWARD_MALONE`) every time they appear.  The
+post-processing enrichment script will attach the visual descriptor
+automatically — you just need to use the correct name.
+
+For locations: use the location name from the Location Bible, but you may
+add a brief (~10-word) context-specific description when the scene needs
+it (e.g. "rain-lashed clinic" instead of just "CLINIC").
 
 # Your three tasks
+
+**Note on post-processing:** After you produce your output, a script
+(`split_prompts.py`) will:
+- Prepend the full style phrase to every prompt (so the artistic style is
+  the first thing the model processes)
+- Add compact visual descriptions in `()` after each `CHARACTER_NAME`
+- Append location settings where appropriate
+This means you can write shorter prompts and let the script handle the
+boilerplate.  Use `CHARACTER_NAME` only — no descriptions.  Use `[style]`
+as a short marker at the end of each prompt instead of repeating the full
+style phrase.
 
 ## Task 1 — Establish ONE art style for the whole book
 
 Read enough of the book (first ~5,000 words) to identify genre, setting,
-period, and tone. Then pick **one** style and use it as the closing phrase
-of every prompt. Pick from this Flux-tested list:
+period, and tone. Then pick **one** style and write `[style]` at the end
+of every prompt.  The post-processing script will expand `[style]` into
+the full style phrase.  Pick from this Flux-tested list:
 
 | Style label (copy verbatim into every prompt) | Best for |
 |---|---|
@@ -138,12 +172,11 @@ of every prompt. Pick from this Flux-tested list:
 | `golden age comic book illustration, bold outlines, dramatic poses, halftone shading` | Pulp adventure, superhero, action serials |
 | `realistic cinematic film still, 85mm lens, shallow depth of field, natural lighting` | Modern drama, thriller, contemporary realism |
 
-For example, if you pick the first one, every prompt MUST contain this
-exact phrase:
-`cinematic oil painting, painterly brushwork, rich earthy palette, dramatic chiaroscuro`
-
-This is what makes the visuals feel like a single coherent project across
-hundreds of images.
+For example, if you pick the first one, write `[style]` at the end of
+every prompt.  Also write the full style phrase into the `===STYLE_BIBLE===`
+section's `STYLE_ANCHOR:` line — the post-processing script reads it from
+there and prepends it to every prompt.  This keeps your prompts short while
+ensuring consistent artistic direction across all images.
 
 ## Task 2 — Build a character + location bible
 
@@ -225,18 +258,18 @@ NAME_IN_CAPS — <15-25 word visual descriptor>
 [Chapter1]
 
 #1
-<50-100 word Flux prompt following RULE 3 structure>
+<40-60 word Flux prompt following RULE 3 structure>
 
 #2
-<50-100 word Flux prompt>
+<40-60 word Flux prompt>
 
 #3
-<50-100 word Flux prompt>
+<40-60 word Flux prompt>
 
 [Chapter2]
 
 #1
-<50-100 word Flux prompt>
+<40-60 word Flux prompt>
 
 (continue until the book is exhausted)
 ===END===
@@ -244,10 +277,10 @@ NAME_IN_CAPS — <15-25 word visual descriptor>
 
 # Worked example (Conan Doyle, *The Lost World*, Chapter 1)
 
-This is what correct Flux-targeted prompts look like. Notice the
-ordered structure: setting → lighting → characters with action →
-character descriptors → mood → shot type → style anchor → technical
-modifiers. Every prompt describes a visual event, not the book's prose.
+This is what correct Flux-targeted prompts look like with the **short
+format**.  Notice: character NAMES only (no descriptions — the enrichment
+script adds them), `[style]` at the end instead of repeating the full
+style phrase.  Every prompt describes a visual event, not the book's prose.
 
 ```
 ===STYLE_BIBLE===
@@ -271,13 +304,13 @@ LONDON_STREET_NIGHT — gas-lit Edwardian London street at night, wet cobbleston
 [Chapter1]
 
 #1
-HUNGERTON_DRAWING_ROOM, late evening, warm gaslight, EDWARD_MALONE — Irish man early 20s, fair freckled skin, short auburn hair, blue eyes, brown tweed suit — sitting stiffly on green velvet settee leaning forward earnestly with hat in lap, MR_HUNGERTON — English gentleman late 60s, fluffy white hair and side-whiskers, rumpled grey morning suit — gesturing expansively from armchair while monologuing, tense polite mood, wide establishing shot, cinematic oil painting, painterly brushwork, rich earthy palette, dramatic chiaroscuro, visible brush strokes, atmospheric haze
+HUNGERTON_DRAWING_ROOM, late evening, warm gaslight, EDWARD_MALONE sitting stiffly on green velvet settee leaning forward earnestly with hat in lap, MR_HUNGERTON gesturing expansively from armchair while monologuing, tense polite mood, wide establishing shot, [style], visible brush strokes, atmospheric haze
 
 #2
-HUNGERTON_DRAWING_ROOM, intimate firelight, GLADYS_HUNGERTON — English woman early 20s, porcelain skin, dark chestnut hair in updo, deep brown eyes, red high-collared evening gown — sitting in profile against deep red velvet curtain, gaze turned away, expression composed and distant, EDWARD_MALONE — auburn-haired young man in brown tweed suit — kneeling at her feet hands clasped looking up with raw earnest desperation, charged silent moment of confession, medium two-shot, cinematic oil painting, painterly brushwork, rich earthy palette, dramatic chiaroscuro, soft rim lighting, romantic mood
+HUNGERTON_DRAWING_ROOM, intimate firelight, GLADYS_HUNGERTON sitting in profile against deep red velvet curtain, gaze turned away, expression composed and distant, EDWARD_MALONE kneeling at her feet hands clasped looking up with raw earnest desperation, charged silent moment of confession, medium two-shot, [style], soft rim lighting, romantic mood
 
 #3
-LONDON_STREET_NIGHT — gas-lit Edwardian street, wet cobblestones, yellow lamplight, fog between brick row houses, distant horse-drawn tram, EDWARD_MALONE — Irish man early 20s, fair freckled skin, short auburn hair, blue eyes, brown tweed suit — striding purposefully down the street with new resolve, jaw set, hat pulled low, hands in coat pockets, isolated determined figure, three-quarter back angle wide shot, brooding atmosphere, cinematic oil painting, painterly brushwork, rich earthy palette, dramatic chiaroscuro, volumetric fog, moody backlight
+LONDON_STREET_NIGHT, gas-lit Edwardian street, wet cobblestones, yellow lamplight, fog between brick row houses, distant horse-drawn tram, EDWARD_MALONE striding purposefully down the street with new resolve, jaw set, hat pulled low, hands in coat pockets, isolated determined figure, three-quarter back angle wide shot, brooding atmosphere, [style], volumetric fog, moody backlight
 
 ===END===
 ```
@@ -286,14 +319,14 @@ Notice how every prompt:
 
 - Opens with the **location** (from bible or new)
 - States **time of day + lighting** explicitly
-- Names the **characters present** with their **full descriptors** copied
-  from the bible
+- Names **characters present** with their **ALL_CAPS name only** (the
+  enrichment script attaches visual descriptors automatically)
 - Includes an **active verb** describing what they're doing
 - Gives a **shot type** (wide establishing / medium two-shot / wide etc.)
-- Ends with the **exact same style anchor** verbatim
+- Uses `[style]` as a short marker (the script expands it)
 - Adds **2-3 technical modifiers** that match the chosen style
 - Contains **zero book text or quotations**
-- Stays in the 50–100 word range
+- Stays in the 40–60 word range (~400–650 characters)
 
 # If you run out of room
 

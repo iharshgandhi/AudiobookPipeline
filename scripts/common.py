@@ -252,3 +252,53 @@ def chunk_text(text: str, max_chars: int = 2800) -> List[str]:
 
 def voices_for(language: str) -> List[Dict[str, str]]:
     return _CURATED.get(language, [])
+
+
+# ---------- Safe truncation (shared by split_prompts & pollinations_generate) ----------
+
+def safe_truncate(text: str, max_chars: int) -> str:
+    """Truncate *text* to ≤ *max_chars* WITHOUT breaking parenthetical
+    ``(...)`` blocks, em-dash ``—...—`` spans, or words.
+
+    If the cut point would fall inside a ``(...)`` block, the entire
+    parenthetical is removed.  Guarantees syntactically valid output —
+    no orphaned ``(``, no mid-word cuts.
+    """
+    if len(text) <= max_chars:
+        return text
+
+    # ---- find best cut position ----
+    best = 0
+    for sep in (". ", ", ", " — ", "  ", " "):
+        pos = text.rfind(sep, 0, max_chars)
+        if pos > max_chars // 2:
+            best = pos
+            break
+    if best == 0:
+        pos = text.rfind(" ", 0, max_chars)
+        best = pos if pos > 0 else max_chars
+
+    truncated = text[:best].rstrip(", —")
+
+    # ---- fix broken parentheticals ----
+    while True:
+        opens = truncated.count("(")
+        closes = truncated.count(")")
+        if opens <= closes:
+            break
+        last_open = truncated.rfind("(")
+        if last_open == -1:
+            break
+        truncated = truncated[:last_open].rstrip(", —")
+
+    # ---- fix broken em-dash spans ----
+    while True:
+        count = truncated.count("—")
+        if count % 2 == 0:
+            break
+        last_dash = truncated.rfind("—")
+        if last_dash == -1:
+            break
+        truncated = truncated[:last_dash].rstrip(", —")
+
+    return truncated.strip()

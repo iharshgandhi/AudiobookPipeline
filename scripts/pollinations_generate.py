@@ -18,11 +18,18 @@ from pathlib import Path
 
 import requests
 
-from common import IMAGES_DIR, PROMPTS_DIR, load_config
+from common import IMAGES_DIR, PROMPTS_DIR, load_config, safe_truncate
 
 ENDPOINT = "https://gen.pollinations.ai/image/"
 TIMEOUT = 180
 WARN_THRESHOLD = 500
+
+# Pollinations.ai / Fireworks FLUX has a prompt-length limit that varies
+# by content complexity.  Rich prompts with many proper nouns and special
+# characters fail around 940–990 chars.  We use a conservative limit
+# with safe truncation (never breaks parentheticals or words).
+MAX_PROMPT_CHARS = 900
+MIN_PROMPT_CHARS = 300  # don't truncate below this
 
 
 def main() -> None:
@@ -104,6 +111,15 @@ def main() -> None:
             print(f"[skip] {label} (empty prompt)")
             continue
 
+        # Truncate overly long prompts to a safe length before first attempt.
+        # Uses safe_truncate which never breaks parentheticals or words.
+        original_len = len(prompt_text)
+        if original_len > MAX_PROMPT_CHARS:
+            prompt_text = safe_truncate(prompt_text, MAX_PROMPT_CHARS)
+            print(
+                f"        trimmed {original_len} → {len(prompt_text)} chars"
+            )
+
         # Pace requests
         elapsed = time.time() - last_call_ts
         if elapsed < GAP_SEC:
@@ -118,7 +134,6 @@ def main() -> None:
             "height": HEIGHT,
             "seed": seed,
         }
-        url = ENDPOINT + urllib.parse.quote(prompt_text, safe="")
 
         print(f"\n[{idx}/{total}] {label}")
         preview = (
@@ -127,67 +142,102 @@ def main() -> None:
         )
         print(f'        "{preview}"')
 
-        attempt = 0
+        current_prompt = prompt_text
         last_err: str | None = None
-        while attempt < 3:
-            attempt += 1
-            last_call_ts = time.time()
-            try:
-                resp = requests.get(
-                    url, params=params, headers=headers, timeout=TIMEOUT
-                )
-                if resp.status_code == 429:
-                    backoff = 30 * attempt
-                    print(
-                        f"        429 rate-limited; "
-                        f"waiting {backoff}s and retrying..."
+        truncation_attempts = 0
+
+        while True:
+            url = ENDPOINT + urllib.parse.quote(current_prompt, safe="")
+            attempt = 0
+            while attempt < 3:
+                attempt += 1
+                last_call_ts = time.time()
+                try:
+                    resp = requests.get(
+                        url, params=params, headers=headers, timeout=TIMEOUT
                     )
-                    time.sleep(backoff)
-                    continue
-                if resp.status_code >= 500:
+                    if resp.status_code == 429:
+                        backoff = 30 * attempt
+                        print(
+                            f"        429 rate-limited; "
+                            f"waiting {backoff}s and retrying..."
+                        )
+                        time.sleep(backoff)
+                        continue
+                    if resp.status_code >= 500:
+                        backoff = 20 * attempt
+                        print(
+                            f"        {resp.status_code} server error; "
+                            f"waiting {backoff}s..."
+                        )
+                        time.sleep(backoff)
+                        continue
+                    if resp.status_code != 200:
+                        last_err = f"HTTP {resp.status_code}: {resp.text[:200]}"
+                        break
+
+                    try:
+                        img = Image.open(io.BytesIO(resp.content))
+                        img.load()
+                    except Exception as e:
+                        last_err = f"invalid image data: {e}"
+                        break
+
+                    img.save(out_path, "PNG")
+                    size_kb = len(resp.content) // 1024
+                    print(
+                        f"        → Images/{chapter_name}/{out_path.name} "
+                        f"({size_kb} KB)"
+                    )
+                    rendered += 1
+                    last_err = None
+                    break
+
+                except requests.exceptions.Timeout:
                     backoff = 20 * attempt
                     print(
-                        f"        {resp.status_code} server error; "
-                        f"waiting {backoff}s..."
+                        f"        timeout after {TIMEOUT}s; "
+                        f"retrying in {backoff}s..."
+                    )
+                    time.sleep(backoff)
+                    last_err = "timeout"
+                    continue
+                except requests.exceptions.RequestException as e:
+                    last_err = f"{e.__class__.__name__}: {e}"
+                    backoff = 15 * attempt
+                    print(
+                        f"        network error; retrying in {backoff}s..."
                     )
                     time.sleep(backoff)
                     continue
-                if resp.status_code != 200:
-                    last_err = f"HTTP {resp.status_code}: {resp.text[:200]}"
-                    break
 
-                try:
-                    img = Image.open(io.BytesIO(resp.content))
-                    img.load()
-                except Exception as e:
-                    last_err = f"invalid image data: {e}"
-                    break
+            if last_err is None:
+                break  # success
 
-                img.save(out_path, "PNG")
-                size_kb = len(resp.content) // 1024
-                print(
-                    f"        → Images/{chapter_name}/{out_path.name} "
-                    f"({size_kb} KB)"
+            # If the error looks like a prompt-length issue (tensor
+            # dimension / invalid request), try a shorter prompt safely.
+            is_length_err = (
+                "negative dimension" in str(last_err)
+                or "invalid_request_error" in str(last_err)
+            )
+            if is_length_err and len(current_prompt) > MIN_PROMPT_CHARS:
+                new_len = max(
+                    MIN_PROMPT_CHARS,
+                    len(current_prompt) - (len(current_prompt) // 10),
                 )
-                rendered += 1
-                last_err = None
-                break
+                if new_len >= len(current_prompt):
+                    break
+                current_prompt = safe_truncate(current_prompt, new_len)
+                print(
+                    f"        prompt-length error; "
+                    f"retrying with {len(current_prompt)} chars..."
+                )
+                continue
 
-            except requests.exceptions.Timeout:
-                backoff = 20 * attempt
-                print(f"        timeout after {TIMEOUT}s; retrying in {backoff}s...")
-                time.sleep(backoff)
-                last_err = "timeout"
-                continue
-            except requests.exceptions.RequestException as e:
-                last_err = f"{e.__class__.__name__}: {e}"
-                backoff = 15 * attempt
-                print(f"        network error; retrying in {backoff}s...")
-                time.sleep(backoff)
-                continue
+            break  # non-length error — don't retry with truncation
 
         if last_err is not None:
-            print(f"        FAILED after {attempt} attempts: {last_err}")
+            print(f"        FAILED after all attempts: {last_err}")
             failed += 1
 
     print(

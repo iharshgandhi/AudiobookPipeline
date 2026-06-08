@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Review Tool</title>
+<style>
+  /* ── Reset & Base ─────────────────────────────────────────────── */
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #1a1a1e; color: #e0e0e0;
+  }
+
+  /* ── Layout ──────────────────────────────────────────────────── */
+  .app { display: grid; height: 100vh; grid-template-columns: 2fr 1fr; }
+
+  /* ── Left Panel: Image Area ──────────────────────────────────── */
+  .image-panel {
+    background: #111;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; position: relative; min-height: 0;
+  }
+  .image-panel img {
+    max-width: 100%; max-height: 100vh;
+    object-fit: contain; display: block;
+  }
+  .image-placeholder {
+    width: 80%; max-width: 400px;
+    aspect-ratio: 16 / 9;
+    background: #2a2a2e;
+    border: 2px dashed #555;
+    border-radius: 12px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 8px; color: #888;
+    font-size: 16px; user-select: none;
+  }
+  .image-placeholder .icon { font-size: 40px; opacity: 0.5; }
+  .image-placeholder .sub { font-size: 13px; color: #666; }
+
+  .image-panel .chapter-badge {
+    position: absolute; top: 12px; left: 12px;
+    background: rgba(0,0,0,0.7); color: #ccc;
+    padding: 4px 12px; border-radius: 6px;
+    font-size: 12px; font-weight: 600;
+    letter-spacing: 0.5px; pointer-events: none;
+  }
+  .image-panel .counter-badge {
+    position: absolute; top: 12px; right: 12px;
+    background: rgba(0,0,0,0.7); color: #aaa;
+    padding: 4px 12px; border-radius: 6px;
+    font-size: 12px; font-weight: 500;
+    pointer-events: none;
+  }
+
+  /* ── Right Panel ─────────────────────────────────────────────── */
+  .panel {
+    display: flex; flex-direction: column;
+    border-left: 1px solid #333; min-height: 0;
+  }
+
+  /* Prompt textarea */
+  .prompt-area {
+    flex: 1; min-height: 0;
+    display: flex; flex-direction: column;
+    padding: 16px 16px 8px;
+  }
+  .prompt-area label {
+    font-size: 11px; text-transform: uppercase;
+    letter-spacing: 1px; color: #666; margin-bottom: 8px;
+    font-weight: 600;
+  }
+  .prompt-area textarea {
+    flex: 1; resize: none; width: 100%;
+    background: #252529; color: #d4d4d4;
+    border: 1px solid #3a3a3e; border-radius: 8px;
+    padding: 12px; font-size: 14px; line-height: 1.6;
+    font-family: inherit;
+    white-space: pre-wrap; word-wrap: break-word;
+    overflow-wrap: break-word;
+    outline: none; transition: border-color 0.2s;
+  }
+  .prompt-area textarea:focus {
+    border-color: #5a5a6e;
+  }
+  .prompt-area textarea:disabled {
+    opacity: 0.5; cursor: not-allowed;
+  }
+
+  /* Save indicator */
+  .save-indicator {
+    font-size: 11px; color: #555; margin-top: 4px;
+    text-align: right; min-height: 16px;
+    transition: color 0.3s;
+  }
+  .save-indicator.saved { color: #4caf50; }
+  .save-indicator.error { color: #f44336; }
+  .save-indicator.saving { color: #ff9800; }
+
+  /* ── Button Bar ──────────────────────────────────────────────── */
+  .button-bar {
+    padding: 8px 16px 16px;
+    display: flex; flex-wrap: wrap; gap: 8px;
+    justify-content: center;
+  }
+  .button-bar .row {
+    display: flex; gap: 8px; width: 100%; justify-content: center;
+  }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 6px; padding: 10px 14px; border: none; border-radius: 8px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: all 0.15s; white-space: nowrap; user-select: none;
+    flex: 1; min-width: 0;
+  }
+  .btn:active:not(:disabled) { transform: scale(0.96); }
+  .btn:disabled {
+    opacity: 0.35; cursor: not-allowed; transform: none;
+  }
+
+  .btn-prev      { background: #555; color: #fff; }
+  .btn-prev:not(:disabled):hover { background: #666; }
+  .btn-prev-ch   { background: #555; color: #fff; }
+  .btn-prev-ch:not(:disabled):hover { background: #666; }
+
+  .btn-reject    { background: #d32f2f; color: #fff; }
+  .btn-reject:not(:disabled):hover { background: #e53935; }
+  .btn-reject:disabled { background: #4a2a2a; color: #777; }
+
+  .btn-next      { background: #388e3c; color: #fff; }
+  .btn-next:not(:disabled):hover { background: #43a047; }
+  .btn-next-ch   { background: #1976d2; color: #fff; }
+  .btn-next-ch:not(:disabled):hover { background: #1e88e5; }
+
+  /* ── Error Banner ────────────────────────────────────────────── */
+  .error-banner {
+    display: none; padding: 10px 16px;
+    background: #b71c1c; color: #fff; font-size: 13px;
+    text-align: center; font-weight: 500;
+  }
+  .error-banner.visible { display: block; }
+
+  /* ── Loading ─────────────────────────────────────────────────── */
+  .loading-overlay {
+    position: fixed; inset: 0; z-index: 100;
+    background: #1a1a1e;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 16px;
+  }
+  .loading-overlay .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid #333; border-top-color: #888;
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-overlay p { color: #888; font-size: 14px; }
+  .loading-overlay.hidden { display: none; }
+
+  /* ── Empty State ─────────────────────────────────────────────── */
+  .empty-state {
+    display: none; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 12px; color: #666; text-align: center;
+    height: 100vh; width: 100vw;
+    position: fixed; inset: 0; z-index: 50;
+    background: #1a1a1e;
+  }
+  .empty-state.visible { display: flex; }
+  .empty-state .icon { font-size: 48px; opacity: 0.4; }
+  .empty-state h2 { font-size: 20px; font-weight: 600; color: #888; margin: 0; }
+  .empty-state p { font-size: 14px; color: #666; max-width: 400px; }
+
+  /* ── Responsive ──────────────────────────────────────────────── */
+  @media (max-width: 768px) {
+    .app { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    .image-panel img { max-height: 50vh; }
+    .image-panel .chapter-badge { top: 8px; left: 8px; font-size: 10px; }
+    .image-panel .counter-badge { top: 8px; right: 8px; font-size: 10px; }
+    .btn { font-size: 12px; padding: 8px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <p>Scanning chapters...</p>
+</div>
+
+<!-- Empty state -->
+<div class="empty-state" id="emptyState">
+  <div class="icon">📭</div>
+  <h2>No images to review</h2>
+  <p>Run the image generation pipeline first to populate Prompts/ and Images/ folders.</p>
+</div>
+
+<!-- Error banner -->
+<div class="error-banner" id="errorBanner"></div>
+
+<!-- Main app -->
+<div class="app" id="app" style="display:none;">
+
+  <!-- Left: Image -->
+  <div class="image-panel" id="imagePanel">
+    <span class="chapter-badge" id="chapterBadge"></span>
+    <span class="counter-badge" id="counterBadge"></span>
+    <img id="mainImage" style="display:none;" alt="Generated image" />
+    <div class="image-placeholder" id="imagePlaceholder" style="display:none;">
+      <span class="icon">🖼️</span>
+      <span>Image Deleted</span>
+      <span class="sub">This image was rejected in a previous session</span>
+    </div>
+  </div>
+
+  <!-- Right: Prompt + Controls -->
+  <div class="panel">
+    <div class="prompt-area">
+      <label for="promptText">Prompt</label>
+      <textarea id="promptText" spellcheck="false" wrap="soft" disabled></textarea>
+      <div class="save-indicator" id="saveIndicator"></div>
+    </div>
+
+    <div class="button-bar">
+      <div class="row">
+        <button class="btn btn-prev"      id="btnPrevImg"      disabled>◀ Prev Image</button>
+        <button class="btn btn-prev-ch"   id="btnPrevCh"       disabled>◀◀ Prev Chapter</button>
+      </div>
+      <div class="row">
+        <button class="btn btn-reject"    id="btnReject"       disabled>✕ Reject</button>
+      </div>
+      <div class="row">
+        <button class="btn btn-next"      id="btnNextImg"      disabled>Next Image ▶</button>
+        <button class="btn btn-next-ch"   id="btnNextCh"       disabled>Next Chapter ▶▶</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // ── State ────────────────────────────────────────────────────────
+  let chapters = [];
+  let currentChapterIdx = 0;
+  let currentImageIdx = 0;
+  let saveTimeout = null;
+  let hasUnsavedChanges = false;
+
+  // ── DOM refs ─────────────────────────────────────────────────────
+  const $ = id => document.getElementById(id);
+  const loadingOverlay  = $('loadingOverlay');
+  const emptyState      = $('emptyState');
+  const errorBanner     = $('errorBanner');
+  const app             = $('app');
+  const mainImage       = $('mainImage');
+  const imagePlaceholder= $('imagePlaceholder');
+  const chapterBadge    = $('chapterBadge');
+  const counterBadge    = $('counterBadge');
+  const promptText      = $('promptText');
+  const saveIndicator   = $('saveIndicator');
+  const btnPrevImg      = $('btnPrevImg');
+  const btnPrevCh       = $('btnPrevCh');
+  const btnReject       = $('btnReject');
+  const btnNextImg      = $('btnNextImg');
+  const btnNextCh       = $('btnNextCh');
+
+  // ── Helpers ──────────────────────────────────────────────────────
+  function showError(msg) {
+    errorBanner.textContent = msg;
+    errorBanner.classList.add('visible');
+    setTimeout(() => errorBanner.classList.remove('visible'), 5000);
+  }
+
+  function getTotalImages() {
+    return chapters.reduce((sum, ch) => sum + ch.images.length, 0);
+  }
+
+  function getCurrentImage() {
+    const ch = chapters[currentChapterIdx];
+    if (!ch) return null;
+    return ch.images[currentImageIdx] || null;
+  }
+
+  function getFlatIndex() {
+    let idx = 0;
+    for (let c = 0; c < currentChapterIdx; c++) {
+      idx += chapters[c].images.length;
+    }
+    return idx + currentImageIdx;
+  }
+
+  function getGlobalImageIdx(flatIdx) {
+    let remaining = flatIdx;
+    for (let c = 0; c < chapters.length; c++) {
+      if (remaining < chapters[c].images.length) {
+        return { ch: c, img: remaining };
+      }
+      remaining -= chapters[c].images.length;
+    }
+    return { ch: 0, img: 0 };
+  }
+
+  // ── Navigation ───────────────────────────────────────────────────
+  function updateButtons() {
+    const img = getCurrentImage();
+    const flat = getFlatIndex();
+    const total = getTotalImages();
+
+    btnPrevImg.disabled  = (flat <= 0);
+    btnPrevCh.disabled   = (currentChapterIdx <= 0);
+    btnNextImg.disabled  = (flat >= total - 1);
+    btnNextCh.disabled   = (currentChapterIdx >= chapters.length - 1);
+
+    // Reject: disabled if image already deleted or nothing loaded
+    if (!img) {
+      btnReject.disabled = true;
+      btnReject.textContent = '✕ Reject';
+    } else if (!img.hasImage) {
+      btnReject.disabled = true;
+      btnReject.textContent = '✕ Already Rejected';
+    } else {
+      btnReject.disabled = false;
+      btnReject.textContent = '✕ Reject';
+    }
+  }
+
+  function loadCurrent() {
+    const img = getCurrentImage();
+    if (!img) {
+      // No images at all (empty state handled elsewhere)
+      return;
+    }
+
+    chapterBadge.textContent = chapters[currentChapterIdx].name.replace('_', ' ').toUpperCase();
+    const flat = getFlatIndex();
+    const total = getTotalImages();
+    counterBadge.textContent = `${flat + 1} / ${total}`;
+
+    // Prompt text
+    promptText.disabled = true;
+    promptText.value = 'Loading...';
+    saveIndicator.textContent = '';
+    saveIndicator.className = 'save-indicator';
+
+    fetch(`/api/prompt?chapter=${encodeURIComponent(chapters[currentChapterIdx].name)}&image=${encodeURIComponent(img.name)}`)
+      .then(r => {
+        if (!r.ok) throw new Error('Failed to load prompt');
+        return r.json();
+      })
+      .then(data => {
+        promptText.value = data.text;
+        promptText.disabled = false;
+        hasUnsavedChanges = false;
+        saveIndicator.textContent = '';
+        saveIndicator.className = 'save-indicator';
+      })
+      .catch(err => {
+        promptText.value = 'Error loading prompt: ' + err.message;
+        saveIndicator.textContent = '⚠ Error';
+        saveIndicator.className = 'save-indicator error';
+      });
+
+    // Image
+    if (img.hasImage) {
+      mainImage.src = `/api/image?chapter=${encodeURIComponent(chapters[currentChapterIdx].name)}&image=${encodeURIComponent(img.name)}&t=${Date.now()}`;
+      mainImage.style.display = 'block';
+      imagePlaceholder.style.display = 'none';
+    } else {
+      mainImage.style.display = 'none';
+      mainImage.src = '';
+      imagePlaceholder.style.display = 'flex';
+    }
+
+    updateButtons();
+  }
+
+  function goToChapterImage(chIdx, iIdx) {
+    if (chIdx < 0 || chIdx >= chapters.length) return;
+    const ch = chapters[chIdx];
+    if (iIdx < 0 || iIdx >= ch.images.length) return;
+    currentChapterIdx = chIdx;
+    currentImageIdx = iIdx;
+    // Cancel any pending auto-save
+    if (saveTimeout) { clearTimeout(saveTimeout); saveTimeout = null; }
+    loadCurrent();
+  }
+
+  function goToPrevImage() {
+    const flat = getFlatIndex();
+    if (flat <= 0) return;
+    const { ch, img } = getGlobalImageIdx(flat - 1);
+    goToChapterImage(ch, img);
+  }
+
+  function goToNextImage() {
+    const flat = getFlatIndex();
+    const total = getTotalImages();
+    if (flat >= total - 1) return;
+    const { ch, img } = getGlobalImageIdx(flat + 1);
+    goToChapterImage(ch, img);
+  }
+
+  function goToPrevChapter() {
+    if (currentChapterIdx <= 0) return;
+    goToChapterImage(currentChapterIdx - 1, 0);
+  }
+
+  function goToNextChapter() {
+    if (currentChapterIdx >= chapters.length - 1) return;
+    goToChapterImage(currentChapterIdx + 1, 0);
+  }
+
+  // ── Auto-save ────────────────────────────────────────────────────
+  function autoSave() {
+    const img = getCurrentImage();
+    if (!img) return;
+    if (saveTimeout) clearTimeout(saveTimeout);
+
+    saveIndicator.textContent = '⏳ Saving...';
+    saveIndicator.className = 'save-indicator saving';
+
+    saveTimeout = setTimeout(() => {
+      const text = promptText.value;
+      fetch('/api/save-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chapter: chapters[currentChapterIdx].name,
+          image: img.name,
+          text: text,
+        }),
+      })
+        .then(r => {
+          if (!r.ok) throw new Error('Save failed');
+          return r.json();
+        })
+        .then(() => {
+          saveIndicator.textContent = '✓ Saved';
+          saveIndicator.className = 'save-indicator saved';
+          hasUnsavedChanges = false;
+        })
+        .catch(err => {
+          saveIndicator.textContent = '⚠ Save failed: ' + err.message;
+          saveIndicator.className = 'save-indicator error';
+        });
+      saveTimeout = null;
+    }, 1000);
+  }
+
+  // ── Reject ────────────────────────────────────────────────────────
+  function rejectImage() {
+    const img = getCurrentImage();
+    if (!img || !img.hasImage) return;
+
+    btnReject.disabled = true;
+    btnReject.textContent = '✕ Rejecting...';
+
+    const text = promptText.value;
+
+    fetch('/api/reject', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chapter: chapters[currentChapterIdx].name,
+        image: img.name,
+        text: text,
+      }),
+    })
+      .then(r => {
+        if (!r.ok) throw new Error('Reject failed');
+        return r.json();
+      })
+      .then(data => {
+        // Mark as deleted in local state
+        img.hasImage = false;
+        // Auto-advance to next image
+        const flat = getFlatIndex();
+        const total = getTotalImages();
+        if (flat < total - 1) {
+          goToNextImage();
+        } else {
+          // Reload current position (will show as deleted)
+          loadCurrent();
+        }
+      })
+      .catch(err => {
+        showError('Reject failed: ' + err.message);
+        btnReject.disabled = false;
+        btnReject.textContent = '✕ Reject';
+      });
+  }
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────
+  function onKeyDown(e) {
+    // Don't capture if typing in textarea
+    if (e.target === promptText) return;
+
+    switch (e.key) {
+      case 'ArrowLeft':
+        e.preventDefault();
+        goToPrevImage();
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        goToNextImage();
+        break;
+      case 'Delete':
+      case 'd':
+        e.preventDefault();
+        if (!btnReject.disabled) rejectImage();
+        break;
+    }
+  }
+
+  // ── Init ──────────────────────────────────────────────────────────
+  function init() {
+    fetch('/api/scan')
+      .then(r => {
+        if (!r.ok) throw new Error('Failed to scan chapters');
+        return r.json();
+      })
+      .then(data => {
+        chapters = data.chapters;
+        loadingOverlay.classList.add('hidden');
+
+        if (!chapters.length) {
+          emptyState.classList.add('visible');
+          return;
+        }
+
+        app.style.display = 'grid';
+        currentChapterIdx = 0;
+        currentImageIdx = 0;
+        loadCurrent();
+
+        // Event listeners
+        promptText.addEventListener('input', () => {
+          hasUnsavedChanges = true;
+          autoSave();
+        });
+        btnPrevImg.addEventListener('click', goToPrevImage);
+        btnPrevCh.addEventListener('click', goToPrevChapter);
+        btnReject.addEventListener('click', rejectImage);
+        btnNextImg.addEventListener('click', goToNextImage);
+        btnNextCh.addEventListener('click', goToNextChapter);
+        document.addEventListener('keydown', onKeyDown);
+      })
+      .catch(err => {
+        loadingOverlay.classList.add('hidden');
+        showError('Failed to connect to server: ' + err.message);
+        // Still show app layout with error message
+        app.style.display = 'grid';
+        promptText.value = 'Could not load data. Is the server running?';
+      });
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
