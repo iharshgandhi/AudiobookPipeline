@@ -130,6 +130,11 @@
   .btn-reject:not(:disabled):hover { background: #e53935; }
   .btn-reject:disabled { background: #4a2a2a; color: #777; }
 
+  .btn-regen     { background: #e65100; color: #fff; }
+  .btn-regen:not(:disabled):hover { background: #ef6c00; }
+  .btn-regen:disabled { background: #3a2a1a; color: #777; }
+  .btn-regen.regen-loading { opacity: 0.7; cursor: wait; }
+
   .btn-next      { background: #388e3c; color: #fff; }
   .btn-next:not(:disabled):hover { background: #43a047; }
   .btn-next-ch   { background: #1976d2; color: #fff; }
@@ -233,6 +238,9 @@
         <button class="btn btn-reject"    id="btnReject"       disabled>✕ Reject</button>
       </div>
       <div class="row">
+        <button class="btn btn-regen"     id="btnRegen"        disabled>🔄 Regenerate</button>
+      </div>
+      <div class="row">
         <button class="btn btn-next"      id="btnNextImg"      disabled>Next Image ▶</button>
         <button class="btn btn-next-ch"   id="btnNextCh"       disabled>Next Chapter ▶▶</button>
       </div>
@@ -266,6 +274,7 @@
   const btnPrevImg      = $('btnPrevImg');
   const btnPrevCh       = $('btnPrevCh');
   const btnReject       = $('btnReject');
+  const btnRegen        = $('btnRegen');
   const btnNextImg      = $('btnNextImg');
   const btnNextCh       = $('btnNextCh');
 
@@ -326,6 +335,13 @@
     } else {
       btnReject.disabled = false;
       btnReject.textContent = '✕ Reject';
+    }
+
+    // Regenerate: enabled unless nothing loaded (even if deleted, can regenerate)
+    if (!img) {
+      btnRegen.disabled = true;
+    } else {
+      btnRegen.disabled = false;
     }
   }
 
@@ -495,6 +511,53 @@
       });
   }
 
+  // ── Regenerate ─────────────────────────────────────────────────────
+  function regenerateImage() {
+    const img = getCurrentImage();
+    if (!img) return;
+
+    btnRegen.disabled = true;
+    btnRegen.classList.add('regen-loading');
+    btnRegen.textContent = '⏳ Regenerating...';
+
+    const text = promptText.value;
+    const chapterName = chapters[currentChapterIdx].name;
+
+    fetch('/api/regenerate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chapter: chapterName,
+        image: img.name,
+        text: text,
+      }),
+    })
+      .then(r => {
+        if (!r.ok) return r.json().then(e => { throw new Error(e.error || 'Regenerate failed'); });
+        return r.json();
+      })
+      .then(data => {
+        // Mark as having an image now
+        img.hasImage = true;
+        // Reload the current image (bust cache)
+        mainImage.src = `/api/image?chapter=${encodeURIComponent(chapterName)}&image=${encodeURIComponent(img.name)}&t=${Date.now()}`;
+        mainImage.style.display = 'block';
+        imagePlaceholder.style.display = 'none';
+        saveIndicator.textContent = '🔄 Regenerated';
+        saveIndicator.className = 'save-indicator saved';
+        btnRegen.textContent = '🔄 Regenerate';
+        btnRegen.classList.remove('regen-loading');
+        btnRegen.disabled = false;
+        updateButtons();
+      })
+      .catch(err => {
+        showError('Regenerate failed: ' + err.message);
+        btnRegen.textContent = '🔄 Regenerate';
+        btnRegen.classList.remove('regen-loading');
+        btnRegen.disabled = false;
+      });
+  }
+
   // ── Keyboard shortcuts ────────────────────────────────────────────
   function onKeyDown(e) {
     // Don't capture if typing in textarea
@@ -513,6 +576,11 @@
       case 'd':
         e.preventDefault();
         if (!btnReject.disabled) rejectImage();
+        break;
+      case 'r':
+      case 'R':
+        e.preventDefault();
+        if (!btnRegen.disabled) regenerateImage();
         break;
     }
   }
@@ -546,6 +614,7 @@
         btnPrevImg.addEventListener('click', goToPrevImage);
         btnPrevCh.addEventListener('click', goToPrevChapter);
         btnReject.addEventListener('click', rejectImage);
+        btnRegen.addEventListener('click', regenerateImage);
         btnNextImg.addEventListener('click', goToNextImage);
         btnNextCh.addEventListener('click', goToNextChapter);
         document.addEventListener('keydown', onKeyDown);
